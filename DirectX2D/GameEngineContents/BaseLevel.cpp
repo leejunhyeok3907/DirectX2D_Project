@@ -11,6 +11,8 @@ BaseLevel::~BaseLevel()
 
 void BaseLevel::FocusCamera(float _Delta)
 {
+	if (MapObject == nullptr) return;
+
 	float4 MapScale = GameEngineTexture::Find(MapObject->GetMapName())->GetScale();
 	float4 ClampScale = MapScale / 2.0f - GameEngineCore::MainWindow.GetScale().Half();
 

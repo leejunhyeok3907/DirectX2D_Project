@@ -22,10 +22,10 @@ void BaseMap::Update(float _Delta)
 	}
 }
 
-void BaseMap::InitMap(std::string_view _MapName, std::string_view _DebugMapName)
+void BaseMap::InitMap(std::string_view _MapName, std::string_view _CollisionMapName)
 {
 	MapName = _MapName;
-	DebugMapName = _DebugMapName;
+	CollisionMapName = _CollisionMapName;
 
 	{
 		GameEnginePath FilePath;
@@ -55,24 +55,24 @@ void BaseMap::InitMap(std::string_view _MapName, std::string_view _DebugMapName)
 		FilePath.MoveParentToExistsChild("ContentsResources");
 		FilePath.MoveChild("ContentsResources\\Texture\\Map\\");
 
-		GameEngineTexture::Load(FilePath.PlusFilePath(_DebugMapName));
-		GameEngineSprite::CreateSingle(_DebugMapName);
+		GameEngineTexture::Load(FilePath.PlusFilePath(_CollisionMapName));
+		GameEngineSprite::CreateSingle(_CollisionMapName);
 
 	}
 
-	DebugMapRenderer = CreateComponent<GameEngineSpriteRenderer>(static_cast<int>(ContentsRenderType::Map));
-	DebugMapRenderer->SetSprite(_DebugMapName);
+	CollisionMapRenderer = CreateComponent<GameEngineSpriteRenderer>(static_cast<int>(ContentsRenderType::Map));
+	CollisionMapRenderer->SetSprite(_CollisionMapName);
 
-	std::shared_ptr<GameEngineTexture> DebugMapTexture = GameEngineTexture::Find(_DebugMapName);
+	std::shared_ptr<GameEngineTexture> CollisionMapTexture = GameEngineTexture::Find(_CollisionMapName);
 
-	float4 HScaleDebug = DebugMapTexture->GetScale().Half();
+	float4 HScaleDebug = CollisionMapTexture->GetScale().Half();
 	HScaleDebug.Y *= -1.0f;
 
-	DebugMapRenderer->Transform.SetLocalPosition(HScaleDebug);
-	DebugMapRenderer->Off();
+	CollisionMapRenderer->Transform.SetLocalPosition(HScaleDebug);
+	CollisionMapRenderer->Off();
 
 	MapTexture = GameEngineTexture::Find(MapName);
-	DebugMapTexture = GameEngineTexture::Find(DebugMapName);
+	CollisionMapTexture = GameEngineTexture::Find(CollisionMapName);
 }
 
 void BaseMap::InitBackGround(std::string_view _BackGroundName)
@@ -108,11 +108,11 @@ void BaseMap::ToggleMode()
 	if (false == DebugMode)
 	{
 		MapRenderer->On();
-		DebugMapRenderer->Off();
+		CollisionMapRenderer->Off();
 	}
 	else if (true == DebugMode)
 	{
 		MapRenderer->Off();
-		DebugMapRenderer->On();
+		CollisionMapRenderer->On();
 	}
 }

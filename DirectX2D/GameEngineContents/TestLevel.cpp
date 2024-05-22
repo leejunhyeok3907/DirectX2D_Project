@@ -16,6 +16,8 @@ void TestLevel::Start()
 	GameEngineInput::AddInputObject(this);
 
 	InitCamera();
+
+	GameEngineLevel::OnDebug();
 }
 
 void TestLevel::Update(float _Delta)
@@ -34,6 +36,7 @@ void TestLevel::LevelStart(GameEngineLevel* _PrevLevel)
 	std::shared_ptr<Player> player = CreateActor<Player>();
 	MainPlayer = player;
 	player->Transform.SetLocalPosition({ HalfWindowScale.X, -HalfWindowScale.Y });
+	player->SetCollisionMapTexture(MapObject->GetCollisionMapName());
 }
 
 void TestLevel::LevelEnd(GameEngineLevel* _NextLevel)

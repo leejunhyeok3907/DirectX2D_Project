@@ -1,5 +1,24 @@
 #pragma once
-class Player : public GameEngineActor
+#include "BaseCharacter.h"
+#include <GameEngineCore/GameEngineState.h>
+
+enum class FSM_State
+{
+	Idle,
+	Run,
+	Jump,
+	Fall,
+	RunToIdle,
+	IdleToRun,
+	Roll,
+	PreCrouch,
+	PostCrouch,
+	DoorKick,
+	Attack,
+	Death,
+};
+
+class Player : public BaseCharacter
 {
 public:
 	Player();
@@ -17,6 +36,18 @@ protected:
 
 	virtual void LevelStart(GameEngineLevel* _PrevLevel) override;
 	virtual void LevelEnd(GameEngineLevel* _NextLevel) override;
+
+private:
+	//FSM
+	void FSM_Idle();
+	void FSM_Run();
+	void FSM_Jump();
+	void FSM_Fall();
+	void FSM_RunToIdle();
+	void FSM_IdleToRun();
+	void FSM_Death();
+
+	GameEngineState FSM_PlayerState;
 
 private:
 	std::shared_ptr<GameEngineSpriteRenderer> PlayerSpriteRenderer;

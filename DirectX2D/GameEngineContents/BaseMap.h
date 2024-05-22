@@ -15,7 +15,7 @@ protected:
 	void Update(float _Delta) override;
 
 public:
-	void InitMap(std::string_view _MapName, std::string_view _DebugMapName);
+	void InitMap(std::string_view _MapName, std::string_view _CollisionMapName);
 	void InitBackGround(std::string_view _BackGroundName);
 	void ToggleMode();
 
@@ -24,17 +24,17 @@ private:
 
 	std::string_view MapName;
 	std::string_view BackGroundName;
-	std::string_view DebugMapName;
+	std::string_view CollisionMapName;
 
 	std::shared_ptr<GameEngineTexture> MapTexture;
-	std::shared_ptr<GameEngineTexture> DebugMapTexture;
+	std::shared_ptr<GameEngineTexture> CollisionMapTexture;
 
 	std::shared_ptr<GameEngineSpriteRenderer> MapRenderer;
 	std::shared_ptr<GameEngineSpriteRenderer> BackGroundRenderer;
-	std::shared_ptr<GameEngineSpriteRenderer> DebugMapRenderer;
+	std::shared_ptr<GameEngineSpriteRenderer> CollisionMapRenderer;
 
 public:
 	std::string_view GetMapName() const { return MapName; }
-	std::string_view GetDebugMapName() const { return DebugMapName; }
+	std::string_view GetCollisionMapName() const { return CollisionMapName; }
 };
 
