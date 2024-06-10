@@ -1,4 +1,10 @@
 #pragma once
+enum class Direction
+{
+	Left,
+	Right
+};
+
 class BaseCharacter : public GameEngineActor
 {
 public:
@@ -23,9 +29,9 @@ protected:
 
 	void ResetGravity();
 
-	bool CheckGroundPixel(float4 _Offset=float4::ZERO);
+	GameEngineColor CheckGroundPixel(float4 _Offset = float4::ZERO);
 
-	bool CheckWallPixel(float4 _Offset = float4::ZERO);
+	GameEngineColor CheckPixel(float4 _Offset = float4::ZERO);
 
 	GameEngineColor GetCollisionMapColor(float4 _Pos, GameEngineColor _DefaultColor = GameEngineColor::WHITE);
 
@@ -43,6 +49,8 @@ protected:
 	bool IsGround;
 
 	bool IsJumping = false;
+
+	bool IsPassingGround = false;
 
 	//기본적으로 가할 중력 속도
 	float GravityPower = 100.0f;

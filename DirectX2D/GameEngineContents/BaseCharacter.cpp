@@ -37,8 +37,14 @@ void BaseCharacter::UpdateGravity(float _Delta)
 	//중력 적용하지않음
 	if (EffectiveGravity == false) return;
 
+	GameEngineColor Color = CheckGroundPixel();
+	GameEngineColor LeftColor, RightColor;
+
+	LeftColor = CheckGroundPixel({ 15.f, -5.f });
+	RightColor = CheckGroundPixel({ -15.f, -5.f });
+
 	//땅을 밟고있는 상태
-	if (CheckGroundPixel() == true)
+	if ((Color == GameEngineColor::RED || Color == GameEngineColor::BLUE) && IsPassingGround == false)
 	{
 		GravityVector = float4::ZERO;
 
@@ -47,23 +53,26 @@ void BaseCharacter::UpdateGravity(float _Delta)
 			IsJumping = false;
 		}
 
+
 		//비탈길인 경우(올라갈때)
-		if (CheckGroundPixel({ 15.f, -5.f }) == true || CheckGroundPixel({ -15.f, -5.f }) == true)
+		if ((LeftColor == GameEngineColor::RED) || (RightColor == GameEngineColor::RED))
 		{
-			GravityVector += {float4::UP* GravityPower};
+			Transform.AddWorldPosition(float4::UP * _Delta * 300.f);
 		}
 	}
 	else
 	{
 		GravityVector += {float4::DOWN* GravityPower* _Delta};
 
+		GameEngineColor HoverColor = CheckGroundPixel({ 0.f, 40.f });
+
 		//공중에 떠있는 상태
-		if (CheckGroundPixel({ 0.f, 40.f }) == false)
+		if (HoverColor != GameEngineColor::WHITE)
 		{
 			//비탈길인 경우(내려갈때)
-			if (CheckGroundPixel({ 15.f, 5.f }) == true || CheckGroundPixel({ -15.f, 5.f }) == true)
+			if ((LeftColor == GameEngineColor::RED) || (RightColor == GameEngineColor::RED))
 			{
-				GravityVector += {float4::DOWN* GravityPower};
+				Transform.AddWorldPosition(float4::DOWN * _Delta * 300.f);
 			}
 		}
 	}
@@ -86,7 +95,7 @@ void BaseCharacter::SetCollisionMapTexture(std::string_view _CollisionMapTexture
 	}
 }
 
-bool BaseCharacter::CheckGroundPixel(float4 _Offset)
+GameEngineColor BaseCharacter::CheckGroundPixel(float4 _Offset)
 {
 	GameEngineColor GroundColor;
 
@@ -100,20 +109,10 @@ bool BaseCharacter::CheckGroundPixel(float4 _Offset)
 
 	GameEngineDebug::DrawBox2D(Trans, TempColor);
 
-	if (GroundColor == GameEngineColor::GREEN)
-	{
-		return false;
-	}
-
-	if (GroundColor == GameEngineColor::RED || GroundColor == GameEngineColor::BLUE)
-	{
-		return true;
-	}
-
-	return false;
+	return GroundColor;
 }
 
-bool BaseCharacter::CheckWallPixel(float4 _Offset)
+GameEngineColor BaseCharacter::CheckPixel(float4 _Offset)
 {
 	GameEngineColor WallColor;
 
@@ -123,16 +122,11 @@ bool BaseCharacter::CheckWallPixel(float4 _Offset)
 	float4 TempColor = { static_cast<float>(Color.R), static_cast<float>(Color.G), static_cast<float>(Color.B), static_cast<float>(Color.A) };
 
 	GameEngineTransform Trans;
-	Trans.SetWorldPosition({ Transform.GetWorldPosition().X - _Offset.X, Transform.GetWorldPosition().Y - 40.0f - _Offset.Y });
+	Trans.SetWorldPosition({ Transform.GetWorldPosition().X - _Offset.X, Transform.GetWorldPosition().Y - _Offset.Y });
 
 	GameEngineDebug::DrawBox2D(Trans, TempColor);
 
-	if (WallColor == GameEngineColor::RED || WallColor == GameEngineColor::BLUE)
-	{
-		return true;
-	}
-
-	return false;
+	return WallColor;
 }
 
 GameEngineColor BaseCharacter::GetCollisionMapColor(float4 _Pos, GameEngineColor _DefaultColor)
