@@ -16,6 +16,7 @@ enum class FSM_State
 	DoorKick,
 	Attack,
 	Death,
+	WallSlide,
 };
 
 class Player : public BaseCharacter
@@ -50,22 +51,36 @@ private:
 	void FSM_PostCrouch();
 	void FSM_Death();
 	void FSM_Attack();
+	void FSM_WallSlide();
 
 	GameEngineState FSM_PlayerState;
 
-	float4 LeftOffset = { -40.0f, 0.0f };
-	float4 RightOffset = { 40.0f, 0.0f };
-	float4 UpOffset = { 0.0f, 40.0f };
-	float4 DownOffset = { 0.f, -40.0f };
+	float4 LeftOffset = { 40.0f, 0.0f };
+	float4 RightOffset = { -40.0f, 0.0f };
+	float4 UpOffset = { 0.0f, -40.0f };
+	float4 DownOffset = { 0.f, 40.0f };
 
 private:
 	void DirectionUpdate();
 
 	Direction CurrentDir;
 
+	Direction LastWallDir;
 	bool IsRolling = false;
+	bool IsInStair = false;
+	bool IsWallJump = false;
 
 	bool CheckCanChangeDir();
+
+	bool CheckWall(float4 _DirOffset);
+
+	bool CheckWall(float4 _DirOffset, GameEngineColor _Color);
+
+	bool CheckInStair(float4 _DirOffset);
+
+	bool CheckOutStair(float4 _DirOffset);
+
+	bool CheckInAir();
 
 private:
 	std::shared_ptr<GameEngineSpriteRenderer> PlayerSpriteRenderer;

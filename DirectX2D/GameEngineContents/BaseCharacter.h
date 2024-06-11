@@ -2,7 +2,7 @@
 enum class Direction
 {
 	Left,
-	Right
+	Right,
 };
 
 class BaseCharacter : public GameEngineActor
@@ -28,6 +28,8 @@ protected:
 	void UpdateGravity(float _Delta);
 
 	void ResetGravity();
+
+	bool CheckGround();
 
 	GameEngineColor CheckGroundPixel(float4 _Offset = float4::ZERO);
 

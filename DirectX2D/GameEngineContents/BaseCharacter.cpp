@@ -37,44 +37,17 @@ void BaseCharacter::UpdateGravity(float _Delta)
 	//중력 적용하지않음
 	if (EffectiveGravity == false) return;
 
-	GameEngineColor Color = CheckGroundPixel();
-	GameEngineColor LeftColor, RightColor;
-
-	LeftColor = CheckGroundPixel({ 15.f, -5.f });
-	RightColor = CheckGroundPixel({ -15.f, -5.f });
-
 	//땅을 밟고있는 상태
-	if ((Color == GameEngineColor::RED || Color == GameEngineColor::BLUE) && IsPassingGround == false)
+	if (CheckGround() && IsPassingGround == false)
 	{
-		GravityVector = float4::ZERO;
-
-		if (IsJumping)
+		if (IsJumping == false)
 		{
-			IsJumping = false;
-		}
-
-
-		//비탈길인 경우(올라갈때)
-		if ((LeftColor == GameEngineColor::RED) || (RightColor == GameEngineColor::RED))
-		{
-			Transform.AddWorldPosition(float4::UP * _Delta * 300.f);
+			GravityVector = float4::ZERO;
 		}
 	}
 	else
 	{
-		GravityVector += {float4::DOWN* GravityPower* _Delta};
-
-		GameEngineColor HoverColor = CheckGroundPixel({ 0.f, 40.f });
-
-		//공중에 떠있는 상태
-		if (HoverColor != GameEngineColor::WHITE)
-		{
-			//비탈길인 경우(내려갈때)
-			if ((LeftColor == GameEngineColor::RED) || (RightColor == GameEngineColor::RED))
-			{
-				Transform.AddWorldPosition(float4::DOWN * _Delta * 300.f);
-			}
-		}
+		GravityVector += (float4::DOWN * GravityPower * _Delta);
 	}
 
 	Transform.AddWorldPosition(GravityVector * _Delta);
@@ -83,6 +56,21 @@ void BaseCharacter::UpdateGravity(float _Delta)
 void BaseCharacter::ResetGravity()
 {
 	GravityVector = float4::ZERO;
+}
+
+bool BaseCharacter::CheckGround()
+{
+	GameEngineColor Color = CheckGroundPixel();
+	GameEngineColor LeftColor, RightColor;
+
+	LeftColor = CheckGroundPixel({ 20.f, 0.f });
+	RightColor = CheckGroundPixel({ -20.f, 0.f });
+
+	bool Result = (Color == GameEngineColor::RED || Color == GameEngineColor::BLUE)
+		&& ((LeftColor == GameEngineColor::RED || LeftColor == GameEngineColor::BLUE)
+		|| (RightColor == GameEngineColor::RED || RightColor == GameEngineColor::BLUE));
+
+	return Result;
 }
 
 void BaseCharacter::SetCollisionMapTexture(std::string_view _CollisionMapTextureName)
@@ -104,10 +92,10 @@ GameEngineColor BaseCharacter::CheckGroundPixel(float4 _Offset)
 	GameEngineColor Color = GetCollisionMapColor({ Transform.GetWorldPosition().X - _Offset.X, Transform.GetWorldPosition().Y - 40.0f - _Offset.Y });
 	float4 TempColor = { static_cast<float>(Color.R), static_cast<float>(Color.G), static_cast<float>(Color.B), static_cast<float>(Color.A) };
 
-	GameEngineTransform Trans;
-	Trans.SetWorldPosition({ Transform.GetWorldPosition().X - _Offset.X, Transform.GetWorldPosition().Y - 40.0f - _Offset.Y });
+	//GameEngineTransform Trans;
+	//Trans.SetWorldPosition({ Transform.GetWorldPosition().X - _Offset.X, Transform.GetWorldPosition().Y - 40.0f - _Offset.Y });
 
-	GameEngineDebug::DrawBox2D(Trans, TempColor);
+	//GameEngineDebug::DrawBox2D(Trans, TempColor);
 
 	return GroundColor;
 }

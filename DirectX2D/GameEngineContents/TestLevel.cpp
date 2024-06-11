@@ -35,7 +35,7 @@ void TestLevel::LevelStart(GameEngineLevel* _PrevLevel)
 
 	std::shared_ptr<Player> player = CreateActor<Player>();
 	MainPlayer = player;
-	player->Transform.SetLocalPosition({ HalfWindowScale.X, -HalfWindowScale.Y });
+	player->Transform.SetWorldPosition({ HalfWindowScale.X, -HalfWindowScale.Y+80.f });
 	player->SetCollisionMapTexture(MapObject->GetCollisionMapName());
 }
 

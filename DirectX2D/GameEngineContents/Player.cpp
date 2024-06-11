@@ -37,6 +37,7 @@ void Player::Start()
 		PlayerSpriteRenderer->CreateAnimation("Jump", "spr_dragon_jump");
 		PlayerSpriteRenderer->CreateAnimation("Fall", "spr_dragon_fall");
 		PlayerSpriteRenderer->CreateAnimation("Attack", "spr_dragon_attack");
+		PlayerSpriteRenderer->CreateAnimation("WallSlide", "spr_dragon_wallslide");
 
 		PlayerSpriteRenderer->CreateAnimation("IdleToRun", "spr_dragon_idle_to_run", 0.1f, 0, 2, false);
 		PlayerSpriteRenderer->CreateAnimation("RunToIdle", "spr_dragon_run_to_idle", 0.1f, 0, 3, false);
@@ -44,6 +45,7 @@ void Player::Start()
 		PlayerSpriteRenderer->CreateAnimation("PreCrouch", "spr_dragon_precrouch", 0.1f, 0, 1, false);
 		PlayerSpriteRenderer->CreateAnimation("PostCrouch", "spr_dragon_postcrouch", 0.1f, 0, 1, false);
 		PlayerSpriteRenderer->CreateAnimation("Roll", "spr_dragon_roll", 0.1f, 0, 6, false);
+		
 
 		PlayerSpriteRenderer->AutoSpriteSizeOn();
 	}
@@ -61,6 +63,7 @@ void Player::Start()
 		FSM_PostCrouch();
 		FSM_Death();
 		FSM_Attack();
+		FSM_WallSlide();
 
 		FSM_PlayerState.ChangeState(FSM_State::Idle);
 	}
@@ -70,9 +73,10 @@ void Player::Update(float _Delta)
 {
 	BaseCharacter::Update(_Delta);
 
-	float4 CurPlayerPos = Transform.GetWorldPosition();
-
-	Transform.SetWorldPosition(CurPlayerPos);
+	CheckPixel(LeftOffset);
+	CheckPixel(RightOffset);
+	CheckPixel(UpOffset);
+	CheckPixel(DownOffset);
 
 	FSM_PlayerState.Update(_Delta);
 }
@@ -111,12 +115,7 @@ void Player::FSM_Idle()
 			{
 				GameEngineColor GroundColor = CheckGroundPixel();
 
-				if (GroundColor==GameEngineColor::BLUE)
-				{
-					FSM_PlayerState.ChangeState(FSM_State::Fall);
-					return;
-				}
-				else if (GroundColor == GameEngineColor::RED)
+				if (GroundColor == GameEngineColor::RED || GroundColor == GameEngineColor::BLUE)
 				{
 					FSM_PlayerState.ChangeState(FSM_State::PreCrouch);
 					return;
@@ -145,6 +144,7 @@ void Player::FSM_Run()
 	Run_Param.Stay = [=](float _Delta, class GameEngineState* _Parent)
 		{
 			float4 MovePos = float4::ZERO;
+			float4 Offset = float4::ZERO;
 
 			DirectionUpdate();
 			SetGravity(true);
@@ -157,37 +157,31 @@ void Player::FSM_Run()
 
 			if (GameEngineInput::IsPress('A', this))
 			{
-
+				Offset = LeftOffset;
 				MovePos = { float4::LEFT * MoveSpeed * _Delta };
 			}
 
 			if (GameEngineInput::IsPress('D', this))
 			{
-
+				Offset = RightOffset;
 				MovePos = { float4::RIGHT * MoveSpeed * _Delta };
 			}
 
 			if (GameEngineInput::IsDown('S', this))
 			{
 				GameEngineColor GroundColor = CheckGroundPixel();
-				MovePos = { 0.f, -MoveSpeed * _Delta };
 
-				if (GroundColor == GameEngineColor::BLUE)
-				{
-					Transform.AddLocalPosition(MovePos);
-					FSM_PlayerState.ChangeState(FSM_State::Fall);
-					return;
-				}
-				else if(GroundColor == GameEngineColor::RED)
+				if (GroundColor == GameEngineColor::RED || GroundColor == GameEngineColor::BLUE)
 				{
 					FSM_PlayerState.ChangeState(FSM_State::PreCrouch);
 					return;
 				}
 			}
 
-			if (CheckGroundPixel() == GameEngineColor::WHITE)
+			if (GravityVector.Y < -20.f)
 			{
 				FSM_PlayerState.ChangeState(FSM_State::Fall);
+				return;
 			}
 
 			//키를 누르지 않아 값이 바뀌지않았다면 입력이 없던것
@@ -198,7 +192,20 @@ void Player::FSM_Run()
 			}
 			else
 			{
-				Transform.AddLocalPosition(MovePos);
+				GameEngineColor Color = CheckPixel(Offset);
+				GameEngineColor CollsionColor = CheckPixel(DownOffset + (float4::UP * 2.f));
+				GameEngineColor CollsionColor2 = CheckPixel(DownOffset + (float4::DOWN * 2.f));
+
+				if ((CollsionColor == GameEngineColor::RED || CollsionColor == GameEngineColor::BLUE)
+					&& (CollsionColor2 == GameEngineColor::RED || CollsionColor2 == GameEngineColor::BLUE))
+				{
+					MovePos += (float4::UP * 300.f * _Delta);
+				}
+
+				if (CheckWall(Offset) == false)
+				{
+					Transform.AddLocalPosition(MovePos);
+				}
 			}
 		};
 
@@ -213,6 +220,8 @@ void Player::FSM_Jump()
 		{
 			PlayerSpriteRenderer->ChangeAnimation("Jump");
 
+			IsJumping = true;
+
 			//std::shared_ptr<Fx> NewFx = GetLevel()->CreateActor<Fx>();
 			//NewFx->SetFxData(EFx_Type::JumpCloud, float4::ZERO);
 			//NewFx->Transform.SetLocalPosition({ Transform.GetLocalPosition().X, Transform.GetLocalPosition().Y + 10.0f });
@@ -221,39 +230,66 @@ void Player::FSM_Jump()
 	Jump_Param.Stay = [=](float _Delta, class GameEngineState* _Parent)
 		{
 			float4 MovePos = float4::ZERO;
+			float4 UpPos = float4::ZERO;
+			float4 Offset = float4::ZERO;
+			float4 CheckOffset = float4::ZERO;
 
 			DirectionUpdate();
 			SetGravity(true);
 
-			MovePos = { 0.f, float4::UP.Y * 3000.f * _Delta };
+			Offset = UpOffset;
+			UpPos = { 0.f, float4::UP.Y * 400.f * _Delta };
 
-			if (GameEngineInput::IsDown('A', this))
+			if (GameEngineInput::IsPress('A', this))
 			{
-				MovePos = { (float4::LEFT + float4::UP) * 300.f * _Delta };
+				Offset = LeftOffset;
+				CheckOffset = LeftOffset.X - 5.f;
+				MovePos = (float4::LEFT * MoveSpeed * _Delta);
 			}
 
-			if (GameEngineInput::IsDown('D', this))
+			if (GameEngineInput::IsPress('D', this))
 			{
-				MovePos = { (float4::RIGHT + float4::UP) * 300.f * _Delta };
+				Offset = RightOffset;
+				CheckOffset = LeftOffset.X + 5.f;
+				MovePos = (float4::RIGHT * MoveSpeed * _Delta);
 			}
 
-			GameEngineColor Color = CheckGroundPixel();
+			GameEngineColor Color = CheckPixel(UpOffset);
 
 			if (Color == GameEngineColor::WHITE || Color == GameEngineColor::BLUE)
 			{
-				Transform.AddLocalPosition(MovePos);
+				Transform.AddLocalPosition(UpPos);
+
+				if (CheckWall(Offset) == false)
+				{
+					Transform.AddLocalPosition(MovePos);
+				}
 			}
-			else
+			else if (Color == GameEngineColor::RED)
 			{
 				FSM_PlayerState.ChangeState(FSM_State::Fall);
 				return;
 			}
 
-			if (GravityVector.Y <= -200.0f);
+			if (CheckWall(CheckOffset, GameEngineColor::GREEN))
+			{
+				if (GameEngineInput::IsPress('A', this) || GameEngineInput::IsPress('D', this))
+				{
+					FSM_PlayerState.ChangeState(FSM_State::WallSlide);
+					return;
+				}
+			}
+
+			if (GravityVector.Y <= -50.0f)
 			{
 				FSM_PlayerState.ChangeState(FSM_State::Fall);
 				return;
 			}
+		};
+
+	Jump_Param.End = [=](class GameEngineState* _Parent)
+		{
+			IsJumping = false;
 		};
 
 	FSM_PlayerState.CreateState(FSM_State::Jump, Jump_Param);
@@ -278,31 +314,39 @@ void Player::FSM_Fall()
 	Fall_Param.Stay = [=](float _Delta, class GameEngineState* _Parent)
 		{
 			float4 MovePos = float4::ZERO;
+			float4 Offset = float4::ZERO;
+			float4 CheckOffset = float4::ZERO;
 
 			DirectionUpdate();
 			SetGravity(true);
 
 			if (GameEngineInput::IsPress('A', this))
 			{
-
-				MovePos = { float4::LEFT * MoveSpeed * _Delta };
+				Offset = LeftOffset;
+				CheckOffset = LeftOffset.X - 5.f;
+				MovePos = (float4::LEFT * MoveSpeed * _Delta);
 			}
 
 			if (GameEngineInput::IsPress('D', this))
 			{
-
-				MovePos = { float4::RIGHT * MoveSpeed * _Delta };
+				Offset = RightOffset;
+				CheckOffset = LeftOffset.X + 5.f;
+				MovePos = (float4::RIGHT * MoveSpeed * _Delta);
 			}
 
-			GameEngineColor GroundColor = CheckGroundPixel();
+			GameEngineColor DownColor = CheckPixel(DownOffset);
+
+			if(IsPassingGround)
 			{
 				//낙하로 파란색 벽 범위 밖으로 벗어남
-				if (GroundColor != LastGroundPixelColor && LastGroundPixelColor == GameEngineColor::BLUE)
+				if (DownColor == GameEngineColor::WHITE)
 				{
 					IsPassingGround = false;
 				}
-
-				if (GroundColor == GameEngineColor::RED)
+			}
+			else
+			{
+				if (CheckGround())
 				{
 					if (GameEngineInput::IsPress('A', this) || GameEngineInput::IsPress('D', this))
 					{
@@ -316,7 +360,19 @@ void Player::FSM_Fall()
 				}
 			}
 
-			Transform.AddLocalPosition(MovePos);
+			if (CheckWall(Offset) == false)
+			{
+				Transform.AddLocalPosition(MovePos);
+			}
+
+			if (CheckWall(CheckOffset, GameEngineColor::GREEN))
+			{
+				if (GameEngineInput::IsPress('A', this) || GameEngineInput::IsPress('D', this))
+				{
+					FSM_PlayerState.ChangeState(FSM_State::WallSlide);
+					return;
+				}
+			}
 		};
 
 	FSM_PlayerState.CreateState(FSM_State::Fall, Fall_Param);
@@ -357,13 +413,7 @@ void Player::FSM_RunToIdle()
 				GameEngineColor GroundColor = CheckGroundPixel();
 				MovePos = { 0.f, -MoveSpeed * _Delta };
 
-				if (GroundColor == GameEngineColor::BLUE)
-				{
-					Transform.AddLocalPosition(MovePos);
-					FSM_PlayerState.ChangeState(FSM_State::Fall);
-					return;
-				}
-				else if (GroundColor == GameEngineColor::RED)
+				if (GroundColor == GameEngineColor::RED || GroundColor == GameEngineColor::BLUE)
 				{
 					FSM_PlayerState.ChangeState(FSM_State::PreCrouch);
 					return;
@@ -373,6 +423,12 @@ void Player::FSM_RunToIdle()
 			if (GameEngineInput::IsDown('A', this) || GameEngineInput::IsDown('D', this))
 			{
 				FSM_PlayerState.ChangeState(FSM_State::IdleToRun);
+				return;
+			}
+
+			if (GravityVector.Y < -20.f)
+			{
+				FSM_PlayerState.ChangeState(FSM_State::Fall);
 				return;
 			}
 		};
@@ -392,6 +448,7 @@ void Player::FSM_IdleToRun()
 	IdleToRun_Param.Stay = [=](float _Delta, class GameEngineState* _Parent)
 		{
 			float4 MovePos = float4::ZERO;
+			float4 Offset = float4::ZERO;
 
 			DirectionUpdate();
 			SetGravity(true);
@@ -412,32 +469,31 @@ void Player::FSM_IdleToRun()
 
 			if (GameEngineInput::IsPress('A', this))
 			{
-
+				Offset = LeftOffset;
 				MovePos = { float4::LEFT * MoveSpeed * _Delta };
 			}
 
 			if (GameEngineInput::IsPress('D', this))
 			{
-
+				Offset = RightOffset;
 				MovePos = { float4::RIGHT * MoveSpeed * _Delta };
 			}
 
 			if (GameEngineInput::IsDown('S', this))
 			{
 				GameEngineColor GroundColor = CheckGroundPixel();
-				MovePos = { 0.f, -MoveSpeed * _Delta };
 
-				if (GroundColor == GameEngineColor::BLUE)
-				{
-					Transform.AddLocalPosition(MovePos);
-					FSM_PlayerState.ChangeState(FSM_State::Fall);
-					return;
-				}
-				else if (GroundColor == GameEngineColor::RED)
+				if (GroundColor == GameEngineColor::RED || GroundColor == GameEngineColor::BLUE)
 				{
 					FSM_PlayerState.ChangeState(FSM_State::PreCrouch);
 					return;
 				}
+			}
+
+			if (GravityVector.Y < -20.f)
+			{
+				FSM_PlayerState.ChangeState(FSM_State::Fall);
+				return;
 			}
 
 			//키를 누르지 않아 값이 바뀌지않았다면 입력이 없던것
@@ -448,7 +504,20 @@ void Player::FSM_IdleToRun()
 			}
 			else
 			{
-				Transform.AddLocalPosition(MovePos);
+				GameEngineColor Color = CheckPixel(Offset);
+				GameEngineColor CollsionColor = CheckPixel(DownOffset + (float4::UP * 2.f));
+				GameEngineColor CollsionColor2 = CheckPixel(DownOffset + (float4::DOWN * 2.f));
+
+				if ((CollsionColor == GameEngineColor::RED || CollsionColor == GameEngineColor::BLUE)
+					&& (CollsionColor2 == GameEngineColor::RED || CollsionColor2 == GameEngineColor::BLUE))
+				{
+					MovePos += (float4::UP * 200.f * _Delta);
+				}
+
+				if (CheckWall(Offset) == false)
+				{
+					Transform.AddLocalPosition(MovePos);
+				}
 			}
 		};
 
@@ -489,17 +558,33 @@ void Player::FSM_Roll()
 			}
 
 			GameEngineColor Color = CheckPixel(Offset);
+			GameEngineColor CollsionColor = CheckPixel(DownOffset + (float4::UP * 2.f));
+			GameEngineColor CollsionColor2 = CheckPixel(DownOffset + (float4::DOWN * 2.f));
 
-			if (Color == GameEngineColor::WHITE)
+			if ((CollsionColor == GameEngineColor::RED || CollsionColor == GameEngineColor::BLUE)
+				&& (CollsionColor2 == GameEngineColor::RED || CollsionColor2 == GameEngineColor::BLUE))
+			{
+				MovePos += (float4::UP * 400.f * _Delta);
+			}
+
+			if (CheckWall(Offset) == false)
 			{
 				Transform.AddLocalPosition(MovePos);
 			}
 
 			if (PlayerSpriteRenderer->IsCurAnimationEnd())
 			{
-				if (GameEngineInput::IsPress('A', this) || GameEngineInput::IsPress('D', this))
+				if (GravityVector.Y < -20.f)
+				{
+					FSM_PlayerState.ChangeState(FSM_State::Fall);
+				}
+				else if (GameEngineInput::IsPress('A', this) || GameEngineInput::IsPress('D', this))
 				{
 					FSM_PlayerState.ChangeState(FSM_State::Run);
+				}
+				else if (GameEngineInput::IsPress('S', this))
+				{
+					FSM_PlayerState.ChangeState(FSM_State::PreCrouch);
 				}
 				else
 				{
@@ -525,13 +610,24 @@ void Player::FSM_PreCrouch()
 	PreCrouch_Param.Stay = [=](float _Delta, class GameEngineState* _Parent)
 		{
 			float4 MovePos = float4::ZERO;
+			float4 Offset = float4::ZERO;
 
 			DirectionUpdate();
 			SetGravity(true);
 
+			Offset = DownOffset;
+
 			if (GameEngineInput::IsPress('A', this) || GameEngineInput::IsPress('D', this))
 			{
 				FSM_PlayerState.ChangeState(FSM_State::Roll);
+				return;
+			}
+
+			GameEngineColor Color = CheckPixel(Offset);
+
+			if ((GameEngineInput::IsDown(VK_SPACE, this) && Color == GameEngineColor::BLUE) || GravityVector.Y < -20.f)
+			{
+				FSM_PlayerState.ChangeState(FSM_State::Fall);
 				return;
 			}
 
@@ -584,6 +680,12 @@ void Player::FSM_PostCrouch()
 				}
 			}
 
+			if (GravityVector.Y < -20.f)
+			{
+				FSM_PlayerState.ChangeState(FSM_State::Fall);
+				return;
+			}
+
 			if (GameEngineInput::IsPress('A', this) || GameEngineInput::IsPress('D', this))
 			{
 				FSM_PlayerState.ChangeState(FSM_State::IdleToRun);
@@ -606,6 +708,75 @@ void Player::FSM_Death()
 
 void Player::FSM_Attack()
 {
+}
+
+void Player::FSM_WallSlide()
+{
+	CreateStateParameter WallSlide_Param;
+
+	WallSlide_Param.Start = [=](class GameEngineState* _Parent)
+		{
+			PlayerSpriteRenderer->ChangeAnimation("WallSlide");
+		};
+
+	WallSlide_Param.Stay = [=](float _Delta, class GameEngineState* _Parent)
+		{
+			float4 MovePos = float4::ZERO;
+			float4 DownPos = float4::ZERO;
+			float4 Offset = float4::ZERO;
+			float4 CheckOffset = float4::ZERO;
+
+			DirectionUpdate();
+			SetGravity(false);
+
+			if (GameEngineInput::IsPress('A', this))
+			{
+				MovePos = (float4::LEFT * MoveSpeed * _Delta);
+			}
+
+			if (GameEngineInput::IsPress('D', this))
+			{
+				MovePos = ( float4::RIGHT * MoveSpeed * _Delta );
+			}
+
+			if (CurrentDir == Direction::Left)
+			{
+				Offset = LeftOffset;
+				CheckOffset = LeftOffset.X - 5.f;
+			}
+			else if (CurrentDir == Direction::Right)
+			{
+				Offset = RightOffset;
+				CheckOffset = LeftOffset.X + 5.f;
+			}
+
+			if (GameEngineInput::IsDown('W', this))
+			{
+				IsWallJump = true;
+				LastWallDir = CurrentDir;
+				FSM_PlayerState.ChangeState(FSM_State::Jump);
+				return;
+			}
+
+			//중력대신에 내려갈 값
+			DownPos += (float4::DOWN * 30.f * _Delta);
+
+			if (CheckWall(Offset) == false)
+			{
+				Transform.AddLocalPosition(MovePos);
+			}
+
+			if (CheckWall(CheckOffset, GameEngineColor::GREEN))
+			{
+				Transform.AddLocalPosition(DownPos);
+			}
+			else
+			{
+				FSM_PlayerState.ChangeState(FSM_State::Fall);
+			}
+		};
+
+	FSM_PlayerState.CreateState(FSM_State::WallSlide, WallSlide_Param);
 }
 
 void Player::DirectionUpdate()
@@ -638,4 +809,108 @@ bool Player::CheckCanChangeDir()
 	bool Check = !IsRolling;
 
 	return Check;
+}
+
+bool Player::CheckWall(float4 _DirOffset)
+{
+	GameEngineColor OffsetColor, OffsetDownColor, OffsetUpColor;
+
+	//가려는 방향과 위, 아래 값이 모두 픽셀에 충돌된 상태라면 벽에 충돌된 상태
+	OffsetColor = CheckPixel(_DirOffset);
+	OffsetDownColor = CheckPixel(_DirOffset + DownOffset);
+	OffsetUpColor = CheckPixel(_DirOffset + UpOffset);
+
+	bool Result = ((OffsetColor == GameEngineColor::RED || OffsetColor == GameEngineColor::BLUE)
+		&& (OffsetUpColor == GameEngineColor::RED || OffsetUpColor == GameEngineColor::BLUE)
+		&& (OffsetDownColor == GameEngineColor::RED || OffsetDownColor == GameEngineColor::BLUE));
+
+	return Result;
+}
+
+bool Player::CheckWall(float4 _DirOffset, GameEngineColor _Color)
+{
+	GameEngineColor OffsetColor, OffsetDownColor, OffsetUpColor;
+
+	//가려는 방향과 위, 아래 값이 모두 픽셀에 충돌된 상태라면 벽에 충돌된 상태
+	OffsetColor = CheckPixel(_DirOffset);
+	OffsetDownColor = CheckPixel(_DirOffset + DownOffset);
+	OffsetUpColor = CheckPixel(_DirOffset + UpOffset);
+
+	bool Result = ((OffsetColor == _Color)
+		&& (OffsetUpColor == _Color)
+		&& (OffsetDownColor == _Color));
+
+	return Result;
+}
+
+bool Player::CheckInStair(float4 _DirOffset)
+{
+	GameEngineColor DownColor, OffsetDownColor, OffsetDownHalfColor, DirOffsetColor;
+
+	DownColor = CheckPixel(DownOffset);
+	OffsetDownColor = CheckPixel(_DirOffset + DownOffset);
+	OffsetDownHalfColor = CheckPixel(_DirOffset + (DownOffset * 0.5f));
+	DirOffsetColor= CheckPixel(_DirOffset);
+
+	bool Result = ((DownColor == GameEngineColor::RED || DownColor == GameEngineColor::BLUE)
+		&& (OffsetDownColor == GameEngineColor::RED || OffsetDownColor == GameEngineColor::BLUE)
+		&& (OffsetDownHalfColor == GameEngineColor::RED || OffsetDownHalfColor == GameEngineColor::BLUE)
+		&& (DirOffsetColor == GameEngineColor::WHITE));
+
+	return Result;
+}
+
+bool Player::CheckOutStair(float4 _DirOffset)
+{
+	if (IsInStair)
+	{
+		GameEngineColor DownColor, OffsetDownColor, DownCheckColor, OffsetDownCheckColor, OffsetDownHalfColor;
+		float4 CheckOffset = float4::UP * 2.f;
+
+		DownColor = CheckPixel(DownOffset);
+		OffsetDownColor = CheckPixel(_DirOffset + DownOffset);
+		DownCheckColor = CheckPixel(DownOffset + CheckOffset);
+		OffsetDownCheckColor = CheckPixel(_DirOffset + DownOffset + CheckOffset);
+		OffsetDownHalfColor = CheckPixel(_DirOffset + (DownOffset * 0.5f));
+
+		//밑, 보고있는 방향은 충돌했지만 그로부터 2픽셀 위로 올린 지점과 Half지점은 충돌하지않았을 경우 경사로에서 벗어난것으로 판단
+		bool Result = ((DownColor == GameEngineColor::RED || DownColor == GameEngineColor::BLUE)
+			&& (OffsetDownColor == GameEngineColor::RED || OffsetDownColor == GameEngineColor::BLUE)
+			&& (DownCheckColor == GameEngineColor::WHITE)
+			&& (OffsetDownCheckColor == GameEngineColor::WHITE)
+			&& (OffsetDownHalfColor == GameEngineColor::WHITE));
+
+		return Result;
+	}
+
+	return false;
+}
+
+bool Player::CheckInAir()
+{
+	GameEngineColor LeftColor, RightColor, DownColor, UpColor;
+	GameEngineColor LeftUPColor, RightUPColor, LeftDownColor, RightDownColor;
+
+	LeftColor = CheckPixel(LeftOffset);
+	RightColor = CheckPixel(RightOffset);
+	DownColor = CheckPixel(DownOffset);
+	UpColor = CheckPixel(UpOffset);
+
+	LeftUPColor = CheckPixel(LeftOffset + UpOffset);
+	RightUPColor = CheckPixel(RightOffset + UpOffset);
+	LeftDownColor = CheckPixel(DownOffset + DownOffset);
+	RightDownColor = CheckPixel(UpOffset + DownOffset);
+
+
+	//8방향 모두 White일때
+	bool Result = (LeftColor == GameEngineColor::WHITE
+		&& RightColor == GameEngineColor::WHITE
+		&& DownColor == GameEngineColor::WHITE
+		&& UpColor == GameEngineColor::WHITE
+		&& LeftUPColor == GameEngineColor::WHITE
+		&& RightUPColor == GameEngineColor::WHITE
+		&& LeftDownColor == GameEngineColor::WHITE
+		&& RightDownColor == GameEngineColor::WHITE);
+
+	return Result;
 }
